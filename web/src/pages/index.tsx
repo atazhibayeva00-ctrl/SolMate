@@ -1,87 +1,38 @@
-<<<<<<< HEAD
-// web/src/pages/index.tsx
 import { useEffect, useMemo, useState } from "react";
-const isBrowser = typeof window !== "undefined";
 
 
-/**
- * Offline Simulation: SolarToken (no blockchain)
- *
- * - Simulates daily kWh production for a household (random or using OpenWeather cloud%).
- * - Converts produced kWh -> SLR tokens (1 kWh => TOKEN_PER_KWH).
- * - Price (internal unit) moves inversely with supply and directly with scarcity from burns.
- * - If NEXT_PUBLIC_OPENWEATHER_API_KEY exists in .env.local, it will fetch real clouds% for the given lat/lon.
- *
- * Demo flows:
- * 1) Get Weather -> shows clouds% (or sim)
- * 2) Click "Simulate Production" -> mints tokens into your wallet (local)
- * 3) "Use Energy" burns tokens (reducing supply) and increases price
- * 4) "Sell Excess" sells tokens for simulated cash (removes tokens, increases cash)
- *
- * NOTE: This is purely front-end simulation intended for hackathon demo when testnet / metamask is unavailable.
- */
-
-const DEFAULT_LAT = Number(process.env.NEXT_PUBLIC_LAT ?? 37.8039);
-const DEFAULT_LON = Number(process.env.NEXT_PUBLIC_LON ?? -122.4011);
+const DEFAULT_LAT = 37.8039;
+const DEFAULT_LON = -122.4011;
 const OWM_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY ?? "";
 
-const TOKEN_PER_KWH = 10; // 1 kWh = 10 SLR tokens (demo conversion)
-const BASE_PRICE = 1.0; // internal price unit (u)
-const MIN_FACTOR_BPS = 8000; // 0.8x mint when very cloudy
-const MAX_FACTOR_BPS = 12000; // 1.2x mint when sunny
-
-function readLS() {
-  try {
-    const raw = localStorage.getItem("solarsim");
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-function writeLS(s: any) {
-  try {
-    localStorage.setItem("solarsim", JSON.stringify(s));
-  } catch {}
-}
+const TOKEN_PER_KWH = 10;
+const BASE_PRICE = 1.0;
+const MIN_FACTOR_BPS = 8000;
+const MAX_FACTOR_BPS = 12000;
 
 export default function Page() {
-  // persistent state
-  const persisted = readLS();
-  const [addrLabel] = useState("Household A (local)"); // for demo only
-  const [tokens, setTokens] = useState<number>(persisted?.tokens ?? 0); // SLR balance
-  const [supply, setSupply] = useState<number>(persisted?.supply ?? 0); // total supply
-  const [cash, setCash] = useState<number>(persisted?.cash ?? 0); // simulated money
-  const [price, setPrice] = useState<number>(persisted?.price ?? BASE_PRICE); // internal price unit
-  const [lat, setLat] = useState<string>(String(DEFAULT_LAT));
-  const [lon, setLon] = useState<string>(String(DEFAULT_LON));
-  const [clouds, setClouds] = useState<number | null>(persisted?.clouds ?? null);
-  const [weatherDesc, setWeatherDesc] = useState<string>(persisted?.weatherDesc ?? "");
-  const [log, setLog] = useState<string[]>(persisted?.log ?? []);
+  const [tokens, setTokens] = useState(0);
+  const [supply, setSupply] = useState(0);
+  const [cash, setCash] = useState(0);
+  const [price, setPrice] = useState(BASE_PRICE);
+  const [lat, setLat] = useState(String(DEFAULT_LAT));
+  const [lon, setLon] = useState(String(DEFAULT_LON));
+  const [clouds, setClouds] = useState<number | null>(null);
+  const [weatherDesc, setWeatherDesc] = useState("");
+  const [log, setLog] = useState<string[]>([]);
+  const [sellAmount, setSellAmount] = useState<number>(0);
 
-  // convenience
-  useEffect(() => {
-    writeLS({ tokens, supply, cash, price, clouds, weatherDesc, log });
-  }, [tokens, supply, cash, price, clouds, weatherDesc, log]);
-
-  // compute factor from clouds% (basis points)
   const factorBps = useMemo(() => {
     if (clouds === null) return 10000;
-    // linear mapping: 0% clouds -> MAX_FACTOR_BPS, 100% -> MIN_FACTOR_BPS
     const f = Math.round(((100 - clouds) * (MAX_FACTOR_BPS - MIN_FACTOR_BPS)) / 100 + MIN_FACTOR_BPS);
     return Math.max(MIN_FACTOR_BPS, Math.min(MAX_FACTOR_BPS, f));
   }, [clouds]);
+  const factorText = (factorBps / 100).toFixed(2) + "x";
 
-  // derived UI text
-  const factorText = useMemo(() => (factorBps / 100).toFixed(2) + "x", [factorBps]);
+  const pushLog = (msg: string) =>
+    setLog((p) => [new Date().toLocaleTimeString() + " — " + msg, ...p]);
 
-  // Helpers
-  const pushLog = (s: string) => setLog((p) => [new Date().toLocaleTimeString() + " — " + s, ...p].slice(0, 50));
-
-  // Weather fetch (uses OpenWeather if key present, otherwise sim)
   async function fetchWeather() {
-    setWeatherDesc("fetching...");
-    setClouds(null);
     try {
       if (OWM_KEY) {
         const la = parseFloat(lat);
@@ -94,15 +45,14 @@ export default function Page() {
         const desc = j?.weather?.[0]?.description ?? "n/a";
         setClouds(Number(c));
         setWeatherDesc(String(desc));
-        pushLog(`Weather fetched: ${c}% clouds (${desc})`);
+        pushLog(`Weather: ${c}% clouds (${desc})`);
       } else {
-        // simulate clouds
         const c = Math.floor(Math.random() * 100);
         setClouds(c);
         setWeatherDesc("simulated");
         pushLog(`Weather simulated: ${c}% clouds`);
       }
-    } catch (e) {
+    } catch {
       const c = Math.floor(Math.random() * 100);
       setClouds(c);
       setWeatherDesc("simulated-error");
@@ -110,69 +60,44 @@ export default function Page() {
     }
   }
 
-  // Simulate daily production (kWh) - random with bias by clouds
   function simulateProduction() {
-    // higher clouds => lower production
     const clr = clouds ?? Math.floor(Math.random() * 100);
-    // base daily prod between 0.5 — 8 kWh, scaled by (1 - clouds%)
     const base = Math.random() * 7.5 + 0.5;
-    const prod = Math.max(0.1, Math.round((base * (100 - clr)) / 100 * 10) / 10); // one decimal kWh
-    // convert to tokens
-    const mintedTokens = Math.round(prod * TOKEN_PER_KWH);
-    setTokens((t) => t + mintedTokens);
-    setSupply((s) => s + mintedTokens);
-
-    // adjust price inversely: newPrice = price * (10000 / factor)
-    setPrice((old) => {
-      const newP = +(old * 10000) / factorBps;
-      pushLog(`Produced ${prod} kWh -> minted ${mintedTokens} SLR. Price moved ${old.toFixed(3)} → ${newP.toFixed(3)}`);
+    const prod = Math.max(0.1, Math.round((base * (100 - clr)) / 100 * 10) / 10);
+    const minted = Math.round(prod * TOKEN_PER_KWH);
+    setTokens((t) => t + minted);
+    setSupply((s) => s + minted);
+    setPrice((p) => {
+      const newP = (p * 10000) / factorBps;
+      pushLog(`Minted ${minted} SLR @ ${clr}% clouds → price ${p.toFixed(3)}→${newP.toFixed(3)}`);
       return Number(newP.toFixed(6));
     });
   }
 
-  // Use (burn) tokens
-  function useEnergy(burnAmount: number) {
-    if (burnAmount <= 0) return;
-    if (burnAmount > tokens) {
-      alert("Not enough tokens to burn");
-      return;
-    }
-    const supplyBefore = supply;
-    setTokens((t) => t - burnAmount);
-    setSupply((s) => s - burnAmount);
-
-    // percent burned of prior supply (in bps)
-    const pctBps = Math.round((burnAmount * 10000) / (supplyBefore || 1));
-    // effect: price increases a bit: price *= (1 + pctBps*0.005%)
-    // simpler: delta = pctBps * 0.0005 => example: 100 bps => 0.05 => +5%
-    setPrice((old) => {
-      const delta = (pctBps * 0.0005);
-      const newP = old * (1 + delta);
-      pushLog(`Burned ${burnAmount} SLR. Price increased ${old.toFixed(3)} → ${newP.toFixed(3)}`);
+  function useEnergy(burn: number) {
+    if (burn <= 0 || burn > tokens) return;
+    const before = supply;
+    setTokens((t) => t - burn);
+    setSupply((s) => s - burn);
+    const pct = Math.round((burn * 10000) / (before || 1));
+    setPrice((p) => {
+      const newP = p * (1 + pct * 0.0005);
+      pushLog(`Used ${burn} SLR → price ${p.toFixed(3)}→${newP.toFixed(3)}`);
       return Number(newP.toFixed(6));
     });
   }
 
-  // Sell tokens for simulated cash (price * amount)
   function sellExcess(amount: number) {
-    if (amount <= 0) return;
-    if (amount > tokens) {
-      alert("Not enough tokens to sell");
-      return;
-    }
-    // cash amount uses current price (internal unit) * amount (we'll use price as $/token for demo)
-    const cashOut = +(price * amount);
+    if (amount <= 0 || amount > tokens) return;
+    const cashOut = price * amount;
     setTokens((t) => t - amount);
     setSupply((s) => s - amount);
     setCash((c) => Number((c + cashOut).toFixed(2)));
-    pushLog(`Sold ${amount} SLR for $${cashOut.toFixed(2)} (sim).`);
-    // slight price drop due to more sold -> fewer tokens in circulation? We'll reduce price by small percent:
-    setPrice((old) => Number((old * 0.995).toFixed(6)));
+    setPrice((p) => Number((p * 0.995).toFixed(6)));
+    pushLog(`Sold ${amount} SLR for $${cashOut.toFixed(2)}`);
   }
 
-  // Reset simulation
   function resetSim() {
-    if (!confirm("Reset local simulation state?")) return;
     setTokens(0);
     setSupply(0);
     setCash(0);
@@ -180,320 +105,57 @@ export default function Page() {
     setClouds(null);
     setWeatherDesc("");
     setLog([]);
-    writeLS(null);
-    pushLog("Simulation reset");
-  }
-
-  // quick auto-simulate helper (mint + maybe burn)
-  function quickDemo() {
-    fetchWeather().then(() => {
-      setTimeout(() => {
-        simulateProduction();
-        setTimeout(() => {
-          // random usage event burn small amount if tokens exist
-          const toBurn = Math.min( Math.round(Math.random() * 40), tokens || 0 );
-          if (toBurn > 0) useEnergy(toBurn);
-        }, 700);
-      }, 700);
-    });
   }
 
   return (
-    <main style={{ maxWidth: 980, margin: "28px auto", fontFamily: "Inter, ui-sans-serif" }}>
-      <h1>SolarToken — Offline Simulation (no MetaMask)</h1>
-      <p style={{ color: "#666" }}>Demo mode: simulated token economy. Use this if testnet/wallets are blocked.</p>
+    <main style={{ maxWidth: 900, margin: "40px auto", fontFamily: "Inter, sans-serif" }}>
+      <h1>☀️ SolarToken Simulator</h1>
+      <p>Simple local demo — mint energy, burn it, and sell for cash.</p>
 
       <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-        <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 10 }}>
-          <div style={{ fontSize: 12, color: "#666" }}>Wallet</div>
-          <div style={{ fontSize: 18, marginTop: 8 }}>{addrLabel}</div>
-          <div style={{ marginTop: 8 }}>Tokens: <b>{tokens} SLR</b></div>
-          <div>Cash (sim): <b>${cash.toFixed(2)}</b></div>
+        <div>
+          <h3>Wallet</h3>
+          <div>Tokens: <b>{tokens}</b></div>
+          <div>Cash: <b>${cash.toFixed(2)}</b></div>
         </div>
-
-        <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 10 }}>
-          <div style={{ fontSize: 12, color: "#666" }}>Market (internal)</div>
-          <div style={{ fontSize: 18, marginTop: 8 }}>{price.toFixed(3)} u</div>
-          <div style={{ marginTop: 8 }}>Total Supply: <b>{supply} SLR</b></div>
+        <div>
+          <h3>Market</h3>
+          <div>Price: <b>{price.toFixed(3)}</b></div>
+          <div>Total Supply: <b>{supply}</b></div>
         </div>
-
-        <div style={{ padding: 12, border: "1px solid #eee", borderRadius: 10 }}>
-          <div style={{ fontSize: 12, color: "#666" }}>Weather</div>
-          <div style={{ marginTop: 8 }}>
-            <input value={lat} onChange={(e)=>setLat(e.target.value)} style={{width:120, marginRight:8, padding:6}} />
-            <input value={lon} onChange={(e)=>setLon(e.target.value)} style={{width:120, padding:6}} />
-            <button onClick={fetchWeather} style={{marginLeft:8, padding:"6px 10px"}}>Get Weather</button>
-          </div>
-          <div style={{ marginTop: 8 }}>Clouds: <b>{clouds ?? "—"}%</b></div>
-          <div>Desc: <b>{weatherDesc || "—"}</b></div>
-          <div>Mint Factor: <b>{factorText}</b></div>
+        <div>
+          <h3>Weather</h3>
+          <input value={lat} onChange={(e) => setLat(e.target.value)} style={{ width: 90, marginRight: 6 }} />
+          <input value={lon} onChange={(e) => setLon(e.target.value)} style={{ width: 90 }} />
+          <button onClick={fetchWeather} style={{ marginLeft: 6 }}>Get Weather</button>
+          <div>Clouds: <b>{clouds ?? "—"}%</b></div>
+          <div>Desc: <b>{weatherDesc}</b></div>
+          <div>Factor: <b>{factorText}</b></div>
         </div>
       </section>
 
-      <section style={{ marginTop: 18, padding: 12, border: "1px solid #eee", borderRadius: 10 }}>
+      <section style={{ marginTop: 20 }}>
         <h3>Actions</h3>
-        <div style={{ display: "flex", gap: 12, alignItems:"center" }}>
-          <button onClick={simulateProduction} style={{ padding: "8px 12px" }}>☀️ Simulate Production (mint)</button>
-          <button onClick={()=>useEnergy(20)} style={{ padding: "8px 12px" }}>⚡ Use 20 SLR (burn)</button>
-          <div style={{ display: "flex", alignItems:"center", gap:8 }}>
-  <input
-    type="number"
-    min="1"
-    placeholder="Amount to sell"
-    id="sellAmount"
-    style={{ width: 100, padding: "6px 8px" }}
-  />
-  <button
-    onClick={()=>{
-      const val = Number((document.getElementById("sellAmount") as HTMLInputElement).value)
-      sellExcess(val)
-    }}
-    style={{ padding: "8px 12px" }}
-  >
-    💸 Sell SLR (custom)
-  </button>
-</div>
-
-          <button onClick={quickDemo} style={{ padding: "8px 12px" }}>🎛 Quick Demo</button>
-          <button onClick={resetSim} style={{ marginLeft: "auto", padding: "8px 12px", background:"#fee" }}>Reset</button>
-        </div>
-
-        <p style={{ marginTop: 8, color:"#666" }}>
-          Conversions: <code>1 kWh → {TOKEN_PER_KWH} SLR</code>. Price moves inversely with minted amount and increases on burns.
-          If you have an OpenWeather key in <code>.env.local</code> (NEXT_PUBLIC_OPENWEATHER_API_KEY), real clouds% will be used — otherwise weather is simulated.
-        </p>
+        <button onClick={simulateProduction}>☀️ Simulate Production</button>
+        <button onClick={() => useEnergy(20)} style={{ marginLeft: 8 }}>⚡ Use 20 SLR</button>
+        <input
+          type="number"
+          min="1"
+          placeholder="Sell amount"
+          value={sellAmount || ""}
+          onChange={(e) => setSellAmount(Number(e.target.value))}
+          style={{ width: 100, marginLeft: 8 }}
+        />
+        <button onClick={() => sellExcess(sellAmount)} style={{ marginLeft: 6 }}>💸 Sell</button>
+        <button onClick={resetSim} style={{ marginLeft: 12 }}>Reset</button>
       </section>
 
-      <section style={{ marginTop: 18, display:"flex", gap:12 }}>
-        <div style={{ flex:1, border:"1px solid #eee", borderRadius:10, padding:12 }}>
-          <h4>Activity Log</h4>
-          <div style={{ maxHeight:220, overflow:"auto", fontSize:13 }}>
-            {log.length === 0 ? <i>No activity yet.</i> : log.map((l,i)=> <div key={i} style={{padding:"6px 0", borderBottom:"1px dashed #f0f0f0"}}>{l}</div>)}
-          </div>
-        </div>
-
-        <div style={{ width:360, border:"1px solid #eee", borderRadius:10, padding:12 }}>
-          <h4>Demo Controls</h4>
-          <div style={{ marginTop:8 }}>
-            <label>Mint amount preview (if simulate now):</label>
-            <div style={{ marginTop:6 }}>
-              <code>
-                Example: if clouds = {clouds ?? "—"}, mint factor = {factorBps/100}x → 1kWh → {TOKEN_PER_KWH} SLR → minted ≈ {Math.round(TOKEN_PER_KWH * ( (factorBps)/10000 ) )} SLR per kWh
-              </code>
-            </div>
-          </div>
-          <div style={{ marginTop:12 }}>
-            <small style={{ color:"#666" }}>Tip: run Quick Demo to automatically fetch weather, mint, and simulate a burn so you can show the judges an animated sequence quickly.</small>
-          </div>
+      <section style={{ marginTop: 20 }}>
+        <h4>Activity Log</h4>
+        <div style={{ maxHeight: 250, overflowY: "auto", fontSize: 13 }}>
+          {log.length === 0 ? <i>No activity yet.</i> : log.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       </section>
     </main>
   );
 }
-=======
-import { useState } from 'react'
-import { useRouter } from 'next/router'
-import { getWeatherByCity, WeatherResponse } from '@/lib/weatherApi'
-import styles from '../styles/SolarHome.module.css'
-
-export default function SolarHome() {
-  const [city, setCity] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!city.trim()) return
-
-    setLoading(true)
-    setError(null)
-    
-    try {
-      const data = await getWeatherByCity(city.trim())
-      setWeatherData(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch weather data')
-      setWeatherData(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className={styles.container}>
-      {/* Animated Background */}
-      <div className={styles.background}>
-        {/* Sun */}
-        <div className={styles.sun}>
-          <div className={styles.sunCore}></div>
-          <div className={styles.ray} style={{ '--delay': '0s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '0.2s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '0.4s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '0.6s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '0.8s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '1s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '1.2s' } as React.CSSProperties}></div>
-          <div className={styles.ray} style={{ '--delay': '1.4s' } as React.CSSProperties}></div>
-        </div>
-
-        {/* Energy Particles */}
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className={styles.particle}
-            style={{
-              '--delay': `${i * 0.3}s`,
-              '--x': `${Math.random() * 100}%`,
-              '--duration': `${15 + Math.random() * 10}s`
-            } as React.CSSProperties}
-          ></div>
-        ))}
-
-        {/* Solar Panel Grid */}
-        <div className={styles.solarGrid}>
-          {[...Array(12)].map((_, i) => (
-            <div key={i} className={styles.solarPanel}>
-              <div className={styles.panelCell}></div>
-              <div className={styles.panelCell}></div>
-              <div className={styles.panelCell}></div>
-              <div className={styles.panelCell}></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className={styles.content}>
-        {/* Header */}
-        <header className={styles.header}>
-          <h1 className={styles.title}>
-            <span className={styles.titleIcon}>☀️</span>
-            SolMate
-          </h1>
-          <p className={styles.tagline}>Harness the Power of Solar Energy</p>
-        </header>
-
-        {/* Main Search Section */}
-        <section className={styles.searchSection}>
-          <form onSubmit={handleSearch} className={styles.searchForm}>
-            <div className={styles.inputWrapper}>
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Enter city name (e.g., London, Dubai, Tokyo)"
-                className={styles.cityInput}
-                disabled={loading}
-              />
-              <button 
-                type="submit" 
-                className={styles.searchButton}
-                disabled={loading || !city.trim()}
-              >
-                {loading ? (
-                  <span className={styles.spinner}>⚡</span>
-                ) : (
-                  <span>🔍</span>
-                )}
-              </button>
-            </div>
-            {error && (
-              <div className={styles.errorMessage}>
-                {error}
-              </div>
-            )}
-          </form>
-
-          {/* Weather Results */}
-          {weatherData && (
-            <div className={styles.weatherCard}>
-              <div className={styles.weatherHeader}>
-                <h2>{weatherData.city}, {weatherData.country}</h2>
-                <div className={styles.weatherTemp}>
-                  {weatherData.temperature.toFixed(1)}°C
-                </div>
-              </div>
-
-              <div className={styles.weatherInfo}>
-                <div className={styles.weatherDesc}>
-                  <span className={styles.weatherIcon}>🌤️</span>
-                  {weatherData.description}
-                </div>
-              </div>
-
-              <div className={styles.metricsGrid}>
-                <div className={styles.metric}>
-                  <div className={styles.metricIcon}>☀️</div>
-                  <div className={styles.metricLabel}>UV Index</div>
-                  <div className={styles.metricValue}>{weatherData.uv_index}</div>
-                </div>
-                <div className={styles.metric}>
-                  <div className={styles.metricIcon}>☁️</div>
-                  <div className={styles.metricLabel}>Cloud Coverage</div>
-                  <div className={styles.metricValue}>{weatherData.cloud_coverage}%</div>
-                </div>
-                <div className={styles.metric}>
-                  <div className={styles.metricIcon}>✨</div>
-                  <div className={styles.metricLabel}>Sunshine Index</div>
-                  <div className={styles.metricValue}>{weatherData.sunshine_index}</div>
-                </div>
-              </div>
-
-              {/* Solar Energy Section */}
-              <div className={styles.solarEnergySection}>
-                <h3 className={styles.solarTitle}>
-                  <span>⚡</span> Solar Energy Potential
-                </h3>
-                <div className={styles.solarStats}>
-                  <div className={styles.solarStat}>
-                    <div className={styles.solarStatValue}>
-                      {weatherData.solar_energy.hourly_kwh.toFixed(4)}
-                    </div>
-                    <div className={styles.solarStatLabel}>kWh per hour</div>
-                  </div>
-                  <div className={styles.solarStat}>
-                    <div className={styles.solarStatValue}>
-                      {weatherData.solar_energy.daily_kwh.toFixed(4)}
-                    </div>
-                    <div className={styles.solarStatLabel}>kWh per day</div>
-                  </div>
-                  <div className={styles.solarStat}>
-                    <div className={styles.solarStatValue}>
-                      {weatherData.solar_energy.power_watts.toFixed(1)}
-                    </div>
-                    <div className={styles.solarStatLabel}>Watts</div>
-                  </div>
-                </div>
-                <div className={styles.solarDetails}>
-                  <div className={styles.solarDetail}>
-                    <span>Panel Size:</span> {weatherData.solar_energy.panel_area_m2} m²
-                  </div>
-                  <div className={styles.solarDetail}>
-                    <span>Efficiency:</span> {(weatherData.solar_energy.panel_efficiency * 100).toFixed(0)}%
-                  </div>
-                  <div className={styles.solarDetail}>
-                    <span>Irradiance:</span> {weatherData.solar_energy.adjusted_irradiance_w_per_m2} W/m²
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Navigation */}
-        <nav className={styles.nav}>
-          <button 
-            onClick={() => router.push('/')}
-            className={styles.navButton}
-            style={{ display: 'none' }}
-          >
-            Go to Marketplace →
-          </button>
-        </nav>
-      </div>
-    </div>
-  )
-}
->>>>>>> 94d843f1cd914871584e981b677c2a91e8a00dee
