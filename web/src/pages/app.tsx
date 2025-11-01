@@ -1,16 +1,20 @@
 import type { AppProps } from 'next/app'
-import { WagmiProvider } from 'wagmi'
-import { config } from '@/lib/wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-
-const client = new QueryClient()
+import { useState } from 'react'
 
 export default function App({ Component, pageProps }: AppProps) {
+  // Create QueryClient inside component to avoid sharing between requests
+  const [client] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+      },
+    },
+  }))
+
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={client}>
-        <Component {...pageProps} />
-      </QueryClientProvider>
-    </WagmiProvider>
+    <QueryClientProvider client={client}>
+      <Component {...pageProps} />
+    </QueryClientProvider>
   )
 }
