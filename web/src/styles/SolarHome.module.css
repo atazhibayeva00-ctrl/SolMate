@@ -1,0 +1,564 @@
+.container {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Sun Animation */
+.sun {
+  position: absolute;
+  top: 10%;
+  right: 10%;
+  width: 200px;
+  height: 200px;
+  animation: rotateSun 20s linear infinite;
+}
+
+.sunCore {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, #ffeb3b 0%, #ff9800 50%, #ff5722 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 60px rgba(255, 152, 0, 0.8), 0 0 120px rgba(255, 152, 0, 0.4);
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+@keyframes rotateSun {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ray {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(255, 235, 59, 0.8), transparent);
+  border-radius: 2px;
+  transform-origin: top center;
+  animation: rayPulse 2s ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+.ray:nth-child(1) { transform: translate(-50%, -50%) rotate(0deg) translateY(-60px); }
+.ray:nth-child(2) { transform: translate(-50%, -50%) rotate(45deg) translateY(-60px); }
+.ray:nth-child(3) { transform: translate(-50%, -50%) rotate(90deg) translateY(-60px); }
+.ray:nth-child(4) { transform: translate(-50%, -50%) rotate(135deg) translateY(-60px); }
+.ray:nth-child(5) { transform: translate(-50%, -50%) rotate(180deg) translateY(-60px); }
+.ray:nth-child(6) { transform: translate(-50%, -50%) rotate(225deg) translateY(-60px); }
+.ray:nth-child(7) { transform: translate(-50%, -50%) rotate(270deg) translateY(-60px); }
+.ray:nth-child(8) { transform: translate(-50%, -50%) rotate(315deg) translateY(-60px); }
+
+@keyframes rayPulse {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) rotate(var(--rotation, 0deg)) translateY(-60px) scaleY(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rotation, 0deg)) translateY(-60px) scaleY(1.2); }
+}
+
+/* Energy Particles */
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: radial-gradient(circle, #ffeb3b, #ff9800);
+  border-radius: 50%;
+  left: var(--x);
+  top: -10px;
+  animation: floatDown var(--duration) linear infinite;
+  animation-delay: var(--delay);
+  box-shadow: 0 0 10px rgba(255, 235, 59, 0.8);
+}
+
+@keyframes floatDown {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) translateX(50px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Solar Panel Grid */
+.solarGrid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 150px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  padding: 20px;
+  opacity: 0.3;
+}
+
+.solarPanel {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  border-radius: 4px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  animation: panelGlow 4s ease-in-out infinite;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.solarPanel:nth-child(even) {
+  animation-delay: 2s;
+}
+
+@keyframes panelGlow {
+  0%, 100% {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), 0 0 20px rgba(255, 235, 59, 0);
+  }
+  50% {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 235, 59, 0.6);
+  }
+}
+
+.panelCell {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border-radius: 2px;
+  height: 30px;
+  position: relative;
+  overflow: hidden;
+}
+
+.panelCell::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 235, 59, 0.4), transparent);
+  animation: cellShine 3s infinite;
+}
+
+@keyframes cellShine {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Content */
+.content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 60px;
+  animation: fadeInDown 1s ease-out;
+}
+
+.title {
+  font-size: 4rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  animation: titleGlow 3s ease-in-out infinite;
+}
+
+.titleIcon {
+  font-size: 4.5rem;
+  animation: rotateIcon 5s linear infinite;
+}
+
+@keyframes rotateIcon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes titleGlow {
+  0%, 100% {
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 30px rgba(255, 235, 59, 0.5);
+  }
+  50% {
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 50px rgba(255, 235, 59, 0.8);
+  }
+}
+
+.tagline {
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 10px;
+  font-weight: 300;
+}
+
+/* Search Section */
+.searchSection {
+  width: 100%;
+  max-width: 600px;
+  animation: fadeInUp 1s ease-out 0.2s both;
+}
+
+.searchForm {
+  margin-bottom: 30px;
+}
+
+.inputWrapper {
+  display: flex;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50px;
+  padding: 5px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inputWrapper:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+}
+
+.cityInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 18px 24px;
+  font-size: 1.1rem;
+  outline: none;
+  color: #333;
+}
+
+.cityInput::placeholder {
+  color: #999;
+}
+
+.searchButton {
+  width: 60px;
+  height: 60px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.searchButton:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.searchButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.errorMessage {
+  margin-top: 15px;
+  padding: 12px 20px;
+  background: rgba(255, 59, 48, 0.9);
+  color: white;
+  border-radius: 10px;
+  text-align: center;
+  animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+/* Weather Card */
+.weatherCard {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.5s ease-out;
+  backdrop-filter: blur(10px);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.weatherHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.weatherHeader h2 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #333;
+}
+
+.weatherTemp {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.weatherInfo {
+  margin-bottom: 25px;
+}
+
+.weatherDesc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  color: #555;
+  text-transform: capitalize;
+}
+
+.weatherIcon {
+  font-size: 2rem;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.metric {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 15px;
+  transition: transform 0.3s ease;
+}
+
+.metric:hover {
+  transform: translateY(-5px);
+}
+
+.metricIcon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.metricLabel {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.metricValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+}
+
+/* Solar Energy Section */
+.solarEnergySection {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 15px;
+  padding: 25px;
+  color: white;
+}
+
+.solarTitle {
+  font-size: 1.5rem;
+  margin: 0 0 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.solarStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.solarStat {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 15px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.solarStatValue {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.solarStatLabel {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.solarDetails {
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.solarDetail span {
+  font-weight: 600;
+  margin-right: 5px;
+}
+
+/* Navigation */
+.nav {
+  margin-top: 40px;
+  text-align: center;
+}
+
+.navButton {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid white;
+  color: white;
+  padding: 15px 40px;
+  border-radius: 50px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.navButton:hover {
+  background: white;
+  color: #667eea;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Animations */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.5rem;
+  }
+  
+  .titleIcon {
+    font-size: 3rem;
+  }
+  
+  .tagline {
+    font-size: 1.2rem;
+  }
+  
+  .metricsGrid,
+  .solarStats {
+    grid-template-columns: 1fr;
+  }
+  
+  .solarDetails {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .sun {
+    width: 150px;
+    height: 150px;
+    top: 5%;
+    right: 5%;
+  }
+  
+  .solarGrid {
+    grid-template-columns: repeat(3, 1fr);
+    height: 100px;
+  }
+}
+

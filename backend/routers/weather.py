@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import httpx
 import os
+from services.solar import calculate_kwh
 
 router = APIRouter()
 
@@ -79,6 +80,13 @@ async def get_weather(city: str):
             cloud_coverage = weather_data.get("clouds", {}).get("all", 0)
             sunshine_index = calculate_sunshine_index(uv_index, cloud_coverage)
             
+            # Calculate solar energy potential (kWh) using solar service
+            # Pass required parameters: uv_index and cloud_coverage
+            solar_energy = calculate_kwh(
+                uv_index=uv_index,
+                cloud_coverage=cloud_coverage
+            )
+            
             return {
                 "city": weather_data["name"],
                 "country": weather_data["sys"]["country"],
@@ -89,7 +97,8 @@ async def get_weather(city: str):
                 "wind_speed": weather_data["wind"]["speed"],
                 "uv_index": round(uv_index, 2),
                 "cloud_coverage": cloud_coverage,
-                "sunshine_index": sunshine_index
+                "sunshine_index": sunshine_index,
+                "solar_energy": solar_energy
             }
             
     except httpx.HTTPError as e:
